@@ -1,0 +1,47 @@
+name: Build BURFY Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android Flutter project
+        run: flutter create --project-name burfy_flutter --platforms=android .
+      - name: Restore Flutter source
+        run: |
+          mkdir -p lib
+          base64 -d source/main.dart.gz.b64 | gzip -d > lib/main.dart
+          sed -i 's/selected.fontSize.clamp(18, 100)/selected.fontSize.clamp(18.0, 100.0).toDouble()/g' lib/main.dart
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Verify with Dart analyzer
+        run: flutter analyze lib/main.dart
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+      - name: Package APK for phone installation
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-debug.apk dist/BURFY-demo.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BURFY-Android-APK
+          path: dist/BURFY-demo.apk
+          retention-days: 14
+          if-no-files-found: error
